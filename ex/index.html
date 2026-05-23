@@ -1,0 +1,447 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Three.js Clock Model - Refactored Glass Fix</title>
+
+    <script type="text/javascript" src="../libs/three.js"></script>
+    <script type="text/javascript" src="../libs/dat.gui.js"></script>
+    <script type="text/javascript" src="../libs/stats.js"></script>
+    <script type="text/javascript" src="../libs/loaders/OBJLoader.js"></script>
+    <script type="text/javascript" src="../libs/loaders/MTLLoader.js"></script>
+    <script type="text/javascript" src="../libs/loaders/EXRLoader.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+    </style>
+</head>
+
+<body>
+<div id="WebGL-output">
+    <div id="Stats-output"></div>
+</div>
+
+<script type="text/javascript">
+
+var hari1Mesh, hari1Pivot;
+var hari2Mesh, hari2Pivot;
+var hari3Mesh, hari3Pivot;
+
+var dodaiMesh, dodaiPivot;
+var dodai2Mesh, dodai2Pivot;
+
+var giaMesh, giaPivot;
+var gia2Mesh, gia2Pivot;
+var gia3Mesh, gia3Pivot;
+var gia4Mesh, gia4Pivot;
+var gia5Mesh, gia5Pivot;
+
+var hutaMesh, hutaPivot;
+var garasuMesh, garasuPivot;
+
+var stats, scene, camera, renderer;
+
+var modelsToLoad = 12;
+var modelsLoaded = 0;
+
+function initStats() {
+    var stats = new Stats();
+    stats.setMode(0);
+    stats.domElement.style.position = "absolute";
+    stats.domElement.style.left = "0px";
+    stats.domElement.style.top = "0px";
+    document.getElementById("Stats-output").appendChild(stats.domElement);//HTML側（画面表示）へ渡す　domElement でHTMLへ翻訳
+    return stats;                                                         //以下のjavascriptの関数へ渡す
+}
+
+function checkAllModelsLoaded() {
+    modelsLoaded++;
+
+    if (modelsLoaded === modelsToLoad) {
+        console.log("全てのモデルのロードが完了しました。アニメーションを開始します。");
+        animate();
+    }
+}
+
+function loadOBJModel(config) {//configとして読み込む？
+    var mtlLoader = new THREE.MTLLoader();
+    mtlLoader.setPath(config.path);
+
+    mtlLoader.load(config.mtl, function(materials) {
+        materials.preload();
+
+        var objLoader = new THREE.OBJLoader();
+        objLoader.setMaterials(materials);
+        objLoader.setPath(config.path);
+
+        objLoader.load(config.obj, function(object) {
+
+            object.traverse(function(child) {
+                if (child.isMesh) {
+                    var originalColor = child.material.color || new THREE.Color(0x808080);
+
+                    if (config.isGlass) {
+                        child.material = new THREE.MeshPhysicalMaterial({
+                            color: 0xffffff,
+                            metalness: 0.0,
+                            roughness: 0.02,
+                            transmission: 1.0,
+                            transparent: true,
+                            opacity: 0.25,
+                            ior: 1.5,
+                            thickness: 0.5,
+                            envMapIntensity: 1.0
+                        });
+                    } else {
+                        child.material = new THREE.MeshStandardMaterial({
+                            color: originalColor,
+                            metalness: config.metalness,
+                            roughness: config.roughness,
+                            envMapIntensity: 2.0
+                        });
+                    }
+
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                }
+            });
+
+            object.scale.set(config.scale, config.scale, config.scale);
+            object.position.set(config.x, config.y, config.z);
+
+            var pivot = new THREE.Group();
+            pivot.add(object);
+            scene.add(pivot);
+
+            config.onLoaded(object, pivot);
+
+            checkAllModelsLoaded();
+        });
+    });
+}
+
+function init() {
+    stats = initStats();
+
+    scene = new THREE.Scene();
+
+    camera = new THREE.PerspectiveCamera(
+        45,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+    );
+
+    renderer = new THREE.WebGLRenderer();
+    renderer.setClearColor(new THREE.Color(0xEEEEEE));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+
+    document.getElementById("WebGL-output").appendChild(renderer.domElement);
+
+    camera.position.set(20, 20, 20);
+    camera.lookAt(scene.position);
+
+    var ambientLight = new THREE.AmbientLight(0xffffff,0.4);
+    scene.add(ambientLight);
+
+    var spotLight = new THREE.SpotLight(0xffffff);
+    spotLight.position.set(10, 20, 20);
+    spotLight.intensity = 2000;
+    spotLight.castShadow = true;
+    scene.add(spotLight);
+
+    var topLight = new THREE.DirectionalLight(0xffffff, 500);
+    topLight.position.set(0, 30, 0);
+    scene.add(topLight);
+
+    var exrLoader = new THREE.EXRLoader();
+    exrLoader.load("studio_small_02_4k.exr",
+        function(texture) {
+            console.log("EXRファイルが正常にロードされました！");
+
+            texture.mapping = THREE.EquirectangularReflectionMapping;
+
+            var pmremGenerator = new THREE.PMREMGenerator(renderer);
+            var envMap = pmremGenerator.fromEquirectangular(texture).texture;
+
+            scene.environment = envMap;
+
+            texture.dispose();
+            pmremGenerator.dispose();
+        },
+        undefined,
+        function(error) {
+            console.error("EXRファイルのロードに失敗しました。パスを確認してください。", error);
+        }
+    );
+
+    var controls = new function() {
+        this.hutaPosY = 0;
+        this.giaPosY = 0;
+        this.gia3PosY = 0;
+        this.gia4PosY = 0;
+        this.gia5PosY = 0;
+        this.dodaiPosY = 0;
+        this.garasuPosY = 0;
+    };
+
+    var gui = new dat.GUI();
+
+    var hutaFolder = gui.addFolder("huta");
+    hutaFolder.add(controls, "hutaPosY", 0, 20).onChange(function(e) {
+        if (hutaPivot) hutaPivot.position.y = e;
+    });
+
+    var giaFolder = gui.addFolder("gia");
+    giaFolder.add(controls, "giaPosY", 0, 20).onChange(function(e) {
+        if (giaPivot) giaPivot.position.y = e;
+    });
+
+    var gia3Folder = gui.addFolder("gia3");
+    gia3Folder.add(controls, "gia3PosY", 0, 20).onChange(function(e) {
+        if (gia3Pivot) gia3Pivot.position.y = e;
+    });
+
+    var gia4Folder = gui.addFolder("gia4");
+    gia4Folder.add(controls, "gia4PosY", 0, 20).onChange(function(e) {
+        if (gia4Pivot) gia4Pivot.position.y = e;
+    });
+
+    var gia5Folder = gui.addFolder("gia5");
+    gia5Folder.add(controls, "gia5PosY", 0, 20).onChange(function(e) {
+        if (gia5Pivot) gia5Pivot.position.y = e;
+    });
+
+    var dodaiFolder = gui.addFolder("dodai");
+    dodaiFolder.add(controls, "dodaiPosY", 0, 20).onChange(function(e) {
+        if (dodaiPivot) dodaiPivot.position.y = e;
+    });
+
+    var garasuFolder = gui.addFolder("garasu");
+    garasuFolder.add(controls, "garasuPosY", 0, 20).onChange(function(e) {
+        if (garasuPivot) garasuPivot.position.y = e;
+    });
+
+    loadOBJModel({
+        path: "hari1/",
+        obj: "hari1.obj",
+        mtl: "hari1.mtl",
+        scale: 2.5,
+        x: -4,
+        y: 7.5,
+        z: 0,
+        metalness: 0.0,
+        roughness: 0.5,
+        onLoaded: function(object, pivot) {
+            hari1Mesh = object;
+            hari1Pivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "hari2/",
+        obj: "hari2.obj",
+        mtl: "hari2.mtl",
+        scale: 2.5,
+        x: 3.6,
+        y: 7.45,
+        z: 0,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            hari2Mesh = object;
+            hari2Pivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "hari3/",
+        obj: "hari3.obj",
+        mtl: "hari3.mtl",
+        scale: 2.5,
+        x: -2.7,
+        y: 7.4,
+        z: 0,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            hari3Mesh = object;
+            hari3Pivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "dodai/",
+        obj: "dodai.obj",
+        mtl: "dodai.mtl",
+        scale: 10,
+        x: 0,
+        y: 0,
+        z: 0,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            dodaiMesh = object;
+            dodaiPivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "dodai2/",
+        obj: "dodai2.obj",
+        mtl: "dodai2.mtl",
+        scale: 10,
+        x: 0,
+        y: 2.5,
+        z: 0,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            dodai2Mesh = object;
+            dodai2Pivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "gia/",
+        obj: "gia.obj",
+        mtl: "gia.mtl",
+        scale: 10,
+        x: 0,
+        y: 0,
+        z: 0,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            giaMesh = object;
+            giaPivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "gia2/",
+        obj: "gia2.obj",
+        mtl: "gia2.mtl",
+        scale: 10,
+        x: 2,
+        y: 0,
+        z: 4,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            gia2Mesh = object;
+            gia2Pivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "gia3/",
+        obj: "gia3.obj",
+        mtl: "gia3.mtl",
+        scale: 10,
+        x: -4.3,
+        y: 0,
+        z: 1.4,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            gia3Mesh = object;
+            gia3Pivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "gia4/",
+        obj: "gia4.obj",
+        mtl: "gia4.mtl",
+        scale: 10,
+        x: -4.25,
+        y: 0,
+        z: -4.15,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            gia4Mesh = object;
+            gia4Pivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "gia5/",
+        obj: "gia5.obj",
+        mtl: "gia5.mtl",
+        scale: 10,
+        x: -4.25,
+        y: 0,
+        z: -4.15,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            gia5Mesh = object;
+            gia5Pivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "huta/",
+        obj: "huta.obj",
+        mtl: "huta.mtl",
+        scale: 10,
+        x: 0,
+        y: -2.5,
+        z: -0.25,
+        metalness: 1.0,
+        roughness: 0.1,
+        onLoaded: function(object, pivot) {
+            hutaMesh = object;
+            hutaPivot = pivot;
+        }
+    });
+
+    loadOBJModel({
+        path: "garasu/",
+        obj: "garasu.obj",
+        mtl: "garasu.mtl",
+        scale: 10,
+        x: 0,
+        y: 5,
+        z: -0.25,
+        metalness: 0.5,
+        roughness: 0.1,
+        isGlass: true,
+        onLoaded: function(object, pivot) {
+            garasuMesh = object;
+            garasuPivot = pivot;
+        }
+    });
+}
+
+function animate() {
+    renderScene();
+}
+
+function renderScene() {
+    if (hari1Pivot) hari1Pivot.rotation.y -= 0.036;
+    if (hari2Pivot) hari2Pivot.rotation.y -= 0.0006;
+    if (hari3Pivot) hari3Pivot.rotation.y -= 0.00001;
+
+    if (giaMesh) giaMesh.rotation.y -= 0.01;
+    if (gia2Mesh) gia2Mesh.rotation.y += 0.04;
+    if (gia3Mesh) gia3Mesh.rotation.y -= 0.04;
+    if (gia4Mesh) gia4Mesh.rotation.y += 0.06;
+    if (gia5Mesh) gia5Mesh.rotation.y += 0.06;
+
+    stats.update();
+
+    requestAnimationFrame(renderScene);
+    renderer.render(scene, camera);
+}
+
+window.onload = init;
+
+</script>
+</body>
+</html>
