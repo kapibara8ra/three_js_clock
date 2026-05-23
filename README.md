@@ -3,6 +3,9 @@ Three.js と Blender を用いて制作した3D時計です。
 大学の授業課題をベースに、時計の外観だけでなく内部構造も見えるように制作しました。  
 金属感のある表現を目指し、EXR環境マップやPBRマテリアルを使用しています。
 
+## Demo
+[Open Three.js Clock](https://kapibara8ra.github.io/three_js_clock/ex/)
+
 ※ GitHub Pages の容量制限の都合上、一部アセットや環境設定を軽量化しています。  
 そのため、以下の参考画像とは一部見た目が異なります。
 ## Screenshot
