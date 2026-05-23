@@ -7,8 +7,8 @@ Three.js と Blender を用いて制作した3D時計です。
 そのため、以下の参考画像とは一部見た目が異なります。
 ## Screenshot
 ![clock](image/clock.png)
-![clock](image/clock2.png)
-![clock](image/clock3.png)
+![clock](image/clock_2.png)
+![clock](image/clock_3.png)
 
 ## 使用技術
 - Three.js
